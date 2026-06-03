@@ -61,12 +61,12 @@ function initWorkDate(){const now=new Date();const et=new Date(now.toLocaleStrin
 function workDateDisplay(){return workDate||'';}
 
 async function loadSheet(){
-  el('bank-list').innerHTML='<div class="loading">Loading your sheet...</div>';
+  el('bank-view').innerHTML='<div class="loading">Loading your sheet...</div>';
   if(!workDate)workDate=initWorkDate();el('work-date').value=workDate;
   const url=`https://sheets.googleapis.com/v4/spreadsheets/${cfg.sheetId}/values/${encodeURIComponent("'"+cfg.tab+"'")}?key=${cfg.apiKey}`;
   try{
     const res=await fetch(url);const data=await res.json();
-    if(data.error){el('bank-list').innerHTML=`<div class="loading error">❌ ${data.error.message}<br><br>Check Sheet ID, tab name, and API key in ⚙️ Settings.</div>`;return;}
+    if(data.error){el('bank-view').innerHTML=`<div class="loading error">❌ ${data.error.message}<br><br>Check Sheet ID, tab name, and API key in ⚙️ Settings.</div>`;return;}
     banks=(data.values||[]).slice(2).map((row,i)=>({ri:i+3,d:row})).filter(b=>b.d[C.BANK]&&String(b.d[C.BANK]).trim());
     resolveLegacyLogs();
     await detectSheetStrikethroughs();
@@ -74,7 +74,7 @@ async function loadSheet(){
     // Find smart start position
     navIdx=findSmartStartIdx();
     applyFilters(false);
-  }catch(e){el('bank-list').innerHTML='<div class="loading error">❌ Network error. Check your connection.</div>';}
+  }catch(e){el('bank-view').innerHTML='<div class="loading error">❌ Network error. Check your connection.</div>';}
 }
 
 function migrateLegacyLogs(){
