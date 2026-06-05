@@ -1,7 +1,7 @@
 // CALLER DASHBOARD TESTER v3
 // Built from scratch — unified number modal, date-based persistence, bank-name keying
 
-const SCRIPT_URL='https://script.google.com/macros/s/AKfycbwTu3t1ybgchssRWD2HnVRaT8uEifcjMbl0xCYRMaf2ROGe-3P20zV3g_WohE__1oAq/exec';
+const SCRIPT_URL='https://script.google.com/macros/s/AKfycbwQi98Cg7DD8t8xegXhelPlcGvFUCEhzs3amya0zPA3EcNl4C1mdah-8FmqrNEx29JJ/exec';
 const CFG_KEY='cdt3_config';
 const LOGS_KEY='cdt3_logs';
 const FLAGS_KEY='cdt3_flags';
@@ -219,8 +219,8 @@ function applyFilters(resetNav){
   const result=visibleBanks().filter(b=>{
     const ri=b.ri,name=String(b.d[C.BANK]||'').toLowerCase();
     if(search&&!name.includes(search))return false;
-    if(status==='called-today')return bankCalledToday(ri);
-    if(status==='not-called-today')return!bankCalledToday(ri)&&!isDeclined(ri);
+    if(status==='called-today')return bankCalledToday(ri)&&!isDeclined(ri)&&!isApptHeld(ri);
+    if(status==='not-called-today')return!bankCalledToday(ri)&&!isDeclined(ri)&&!isApptHeld(ri);
     if(status==='incomplete')return bankIncomplete(ri);
     if(status==='complete')return bankComplete(ri);
     if(status==='sos')return Object.keys(flags).some(k=>k.startsWith(bankId(ri)+'__')&&!flags[k].undone);
@@ -280,15 +280,19 @@ function findSmartStartIdx(){
 function updateNavCounter(){
   const total=navList.length;
   st('nav-counter',total?'Bank '+(navIdx+1)+' of '+total:'No banks');
-  el('btn-prev').disabled=navIdx<=0;
-  el('btn-next').disabled=navIdx>=navList.length-1;
+  el('btn-prev').disabled=total===0;
+  el('btn-next').disabled=total===0;
 }
 
 function prevBank(){
-  if(navIdx>0){navIdx--;updateNavCounter();showCurrentBank();}
+  if(navList.length===0)return;
+  navIdx=(navIdx-1+navList.length)%navList.length;
+  updateNavCounter();showCurrentBank();
 }
 function nextBank(){
-  if(navIdx<navList.length-1){navIdx++;updateNavCounter();showCurrentBank();}
+  if(navList.length===0)return;
+  navIdx=(navIdx+1)%navList.length;
+  updateNavCounter();showCurrentBank();
 }
 
 function showCurrentBank(){
@@ -580,7 +584,7 @@ async function saveNumModal(){
       // Save flag if issue selected
       if(flagIssue){
         anyFlag=true;
-        flags[getFlagKey(ri,role,ph)]={ri,role,phone:ph,issue:flagIssue,undone:false,called:true};
+        flags[getFlagKey(ri,role,ph)]={ri,role,phone:ph,issue:flagIssue,undone:false,called:true,date:workDate};
         await strikethrough(ri,rc.phone,ph);
         await writeContactUpdate(ri,role,ph,flagIssue,d,phones);
         // Auto-flag same number on other roles if shared
@@ -590,7 +594,7 @@ async function saveNumModal(){
           const otherPhones=parsePhones(d[orc.phone]);
           const matchPh=otherPhones.find(op=>phoneDigits(op)===digits);
           if(matchPh){
-            flags[getFlagKey(ri,otherRole,matchPh)]={ri,role:otherRole,phone:matchPh,issue:flagIssue,undone:false,called:false,sharedFrom:role};
+            flags[getFlagKey(ri,otherRole,matchPh)]={ri,role:otherRole,phone:matchPh,issue:flagIssue,undone:false,called:false,sharedFrom:role,date:workDate};
             await strikethrough(ri,orc.phone,matchPh);
           }
         }
@@ -602,7 +606,7 @@ async function saveNumModal(){
       const flagIssue=el('nm-flagonly-'+pi)?.value||'';
       if(flagIssue){
         anyFlag=true;
-        flags[getFlagKey(ri,role,ph)]={ri,role,phone:ph,issue:flagIssue,undone:false,called:false};
+        flags[getFlagKey(ri,role,ph)]={ri,role,phone:ph,issue:flagIssue,undone:false,called:false,date:workDate};
         noteLines.push(ph+' '+flagIssue+'.');
         await strikethrough(ri,rc.phone,ph);
         await writeContactUpdate(ri,role,ph,flagIssue,d,phones);
@@ -936,9 +940,9 @@ function showEOD(){
   // Appointments
   const appointments=connects.filter(c=>c.outcome==='Expressed Interest');
 
-  // SOS grouped by bank — only app-flagged numbers (not auto-detected from sheet)
+  // SOS grouped by bank — only flags from TODAY, not auto-detected from sheet
   const sosByBank={};
-  Object.values(flags).filter(f=>!f.undone&&!f.fromSheet).forEach(f=>{
+  Object.values(flags).filter(f=>!f.undone&&!f.fromSheet&&f.date===workDate).forEach(f=>{
     const b=banks.find(x=>x.ri===f.ri);if(!b)return;
     const key=f.ri+'|||'+b.d[C.BANK];if(!sosByBank[key])sosByBank[key]={row:f.ri,bank:b.d[C.BANK],entries:[]};
     sosByBank[key].entries.push(f);
